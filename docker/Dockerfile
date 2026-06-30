@@ -1,65 +1,35 @@
-ARG TRIMGALORE_VERSION=2.2.0
-ARG TRIMGALORE_COMMIT_SHORT=5846564
+ARG TRIMGALORE_VERSION=2.3.0
+ARG TRIMGALORE_TAG=v2.3.0
+ARG TRIMGALORE_COMMIT=c6528e54512e0e388a392d36475291bcbf0eb0dd
+ARG TRIMGALORE_COMMIT_SHORT=c6528e5
+ARG TRIMGALORE_SOURCE_DATE_EPOCH=1782576051
 
-FROM debian:12-slim AS fetcher
+FROM rust:1.88-bookworm AS builder
 
-ARG TARGETARCH
-ARG TRIMGALORE_VERSION
-ARG TRIMGALORE_COMMIT_SHORT
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN set -eux; \
-    for attempt in 1 2 3; do \
-      if apt-get -o Acquire::Retries=3 update \
-       && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
-            ca-certificates \
-            curl \
-            tar; then \
-        break; \
-      fi; \
-      if [ "$attempt" = "3" ]; then exit 1; fi; \
-      apt-get clean; \
-      rm -rf /var/lib/apt/lists/*; \
-      sleep 5; \
-    done; \
-    rm -rf /var/lib/apt/lists/*
+ARG TRIMGALORE_TAG
+ARG TRIMGALORE_COMMIT
+ARG TRIMGALORE_SOURCE_DATE_EPOCH
+ENV SOURCE_DATE_EPOCH=${TRIMGALORE_SOURCE_DATE_EPOCH}
 
 WORKDIR /tmp/build
 
 RUN set -eux; \
-    arch="${TARGETARCH:-$(dpkg --print-architecture)}"; \
-    case "${arch}" in \
-      amd64) \
-        tg_arch="x86_64"; \
-        tg_sha="7ed9de04632ef4b8430aa03ee9a8d0872822299279dfda4d637ff73cde7a6474"; \
-        ;; \
-      arm64) \
-        tg_arch="aarch64"; \
-        tg_sha="507c203ae72374a7a1ffa84ea20560707908fb720741d64dfb81984bfda22118"; \
-        ;; \
-      *) \
-        echo "Unsupported TARGETARCH: ${arch}" >&2; \
-        exit 1; \
-        ;; \
-    esac; \
-    asset="trim_galore-linux-${tg_arch}.tar.gz"; \
-    curl -fsSL \
-      -o "${asset}" \
-      "https://github.com/FelixKrueger/TrimGalore/releases/download/v${TRIMGALORE_VERSION}/${asset}"; \
-    echo "${tg_sha}  ${asset}" | sha256sum -c -; \
+    git clone --depth 1 --branch "${TRIMGALORE_TAG}" https://github.com/FelixKrueger/TrimGalore.git src; \
+    cd src; \
+    test "$(git rev-parse HEAD)" = "${TRIMGALORE_COMMIT}"; \
+    cargo build --release --locked; \
     mkdir -p /opt/trimgalore/bin /opt/trimgalore/share/doc/trimgalore /opt/trimgalore/share/licenses/trimgalore; \
-    tar -xzf "${asset}" --strip-components=1 -C /tmp/build; \
-    install -m 0755 trim_galore /opt/trimgalore/bin/trim_galore; \
-    install -m 0644 README.md /opt/trimgalore/share/doc/trimgalore/README.md; \
+    install -m 0755 target/release/trim_galore /opt/trimgalore/bin/trim_galore; \
+    install -m 0644 README.md CHANGELOG.md CITATION.cff /opt/trimgalore/share/doc/trimgalore/; \
     install -m 0644 LICENSE /opt/trimgalore/share/licenses/trimgalore/LICENSE; \
     { \
       echo "name=Trim Galore"; \
-      echo "version=${TRIMGALORE_VERSION}"; \
-      echo "release=v${TRIMGALORE_VERSION}"; \
-      echo "commit_short=${TRIMGALORE_COMMIT_SHORT}"; \
-      echo "target_arch=${arch}"; \
-      echo "asset=https://github.com/FelixKrueger/TrimGalore/releases/download/v${TRIMGALORE_VERSION}/${asset}"; \
-      echo "asset_sha256=${tg_sha}"; \
+      echo "version=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = //; s/\"//g')"; \
+      echo "release=${TRIMGALORE_TAG}"; \
+      echo "commit=${TRIMGALORE_COMMIT}"; \
+      echo "source=https://github.com/FelixKrueger/TrimGalore.git"; \
+      echo "source_date_epoch=${TRIMGALORE_SOURCE_DATE_EPOCH}"; \
+      echo "build=cargo build --release --locked"; \
     } > /opt/trimgalore/share/doc/trimgalore/source.txt
 
 FROM debian:12-slim
@@ -88,7 +58,7 @@ RUN set -eux; \
     done; \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=fetcher /opt/trimgalore /opt/trimgalore
+COPY --from=builder /opt/trimgalore /opt/trimgalore
 
 ENV PATH=/opt/trimgalore/bin:${PATH}
 
@@ -98,11 +68,12 @@ RUN set -eux; \
     command -v gzip >/dev/null; \
     command -v unzip >/dev/null; \
     command -v ldd >/dev/null; \
-    trim_galore --version 2>&1 | grep -F "trim_galore ${TRIMGALORE_VERSION} (Oxidized Edition)" >/dev/null; \
+    trim_galore --version 2>&1 | grep -F "trim_galore ${TRIMGALORE_VERSION}" >/dev/null; \
     trim_galore --version 2>&1 | grep -F "${TRIMGALORE_COMMIT_SHORT}" >/dev/null; \
-    trim_galore -h 2>&1 | grep -F "Fast adapter and quality trimming for NGS data" >/dev/null; \
+    trim_galore --help 2>&1 | grep -F "Trim Galore: A fast, single-pass" >/dev/null; \
     trim_galore --help 2>&1 | grep -F "built in via the bundled fastqc-rust library" >/dev/null; \
-    ldd /opt/trimgalore/bin/trim_galore | grep -F "libz.so" >/dev/null; \
+    trim_galore --help 2>&1 | grep -F "output-format" >/dev/null; \
+    trim_galore --help 2>&1 | grep -F "passthrough" >/dev/null; \
     ! ldd /opt/trimgalore/bin/trim_galore | grep -F "not found" >/dev/null
 
 RUN set -eux; \
@@ -118,6 +89,9 @@ RUN set -eux; \
     test -s fastqc-out/reads_trimmed_fastqc.html; \
     test -s fastqc-out/reads_trimmed_fastqc.zip; \
     unzip -p fastqc-out/reads_trimmed_fastqc.zip reads_trimmed_fastqc/summary.txt | grep -F "Basic Statistics" >/dev/null; \
+    trim_galore --output-format ubam --length 5 -o ubam-out reads.fq >/tmp/trimgalore-ubam-check.log 2>&1; \
+    test -s ubam-out/reads_trimmed.bam; \
+    gzip -cd ubam-out/reads_trimmed.bam | head -c 4 | od -An -tx1 | tr -d " \n" | grep -Fx "42414d01" >/dev/null; \
     cd /; \
     rm -rf /tmp/trimgalore-check
 
