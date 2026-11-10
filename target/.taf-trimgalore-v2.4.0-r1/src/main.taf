@@ -1,0 +1,2 @@
+<taf-app:container:ghcr.io/taffish/trimgalore:2.4.0-r1>
+trim_galore ::*ARGV*::

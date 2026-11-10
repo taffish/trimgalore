@@ -1,219 +1,59 @@
-# trimgalore
+# Trim Galore for TAFFISH
 
-TAFFISH wrapper for [Trim Galore](https://www.trimgalore.com/), a FASTQ
-adapter and quality trimmer for next-generation sequencing data. This package
-wraps upstream Trim Galore v2.3.0, the Rust rewrite of Trim Galore.
+Trim adapters and low-quality ends from reads, keep paired files synchronized, or generate an offline quality report. This tool packages unmodified [Trim Galore v2.4.0](https://github.com/FelixKrueger/TrimGalore/releases/tag/v2.4.0), the Rust implementation by Felix Krueger.
 
-## Package Identity
+| Package | Installed command | Image | Upstream identity |
+| --- | --- | --- | --- |
+| `trimgalore` · tool · `2.4.0-r1` | `taf-trimgalore` | `ghcr.io/taffish/trimgalore:2.4.0-r1` | `trim_galore 2.4.0` · `508d85f` |
 
-| field | value |
-| --- | --- |
-| name | `trimgalore` |
-| command | `taf-trimgalore` |
-| kind | `tool` |
-| TAFFISH version | `2.3.0-r1` |
-| container image | `ghcr.io/taffish/trimgalore:2.3.0-r1` |
-| upstream project | `FelixKrueger/TrimGalore` |
-| upstream release | `v2.3.0` |
-| upstream command | `trim_galore` |
-| runtime version | `trim_galore 2.3.0`, commit `c6528e5` |
-| native platforms | `linux/amd64`, `linux/arm64` |
+After this version appears in the Hub Index, run `taf update` and `taf install trimgalore 2.4.0-r1`. Use `taf-trimgalore-v2.4.0-r1` to select the exact version, or `taf-trimgalore` for the installed alias.
 
-## What Is Packaged
+## Run a sample
 
-Trim Galore v2.3.0 is a single Rust binary. Unlike the older 0.6.x Perl
-wrapper series, it does not require external `cutadapt`, Java, or an external
-`fastqc` executable for the core workflows. FastQC-compatible reports are
-produced by the bundled `fastqc-rust` engine when `--fastqc` is used.
-
-For v2.3.0, the upstream tag page exists but the old `v2.2.0` Linux release
-binary assets are not published under the previous names. This TAFFISH update
-therefore builds from the fixed upstream Git tag `v2.3.0` and verifies the
-target commit `c6528e54512e0e388a392d36475291bcbf0eb0dd` before running
-`cargo build --release --locked`. The runtime image includes the dynamic
-libraries needed by the binary, plus `bash`, `gzip`, and `unzip` for common
-command-line use and smoke checks.
-
-## Usage
-
-Show TAFFISH wrapper help:
+Start in a writable project directory. Give each run a new output directory.
 
 ```sh
-taf-trimgalore --help
+taf-trimgalore trim_galore --fastqc -o qc reads.fq.gz
+taf-trimgalore --paired --cores 4 -o paired sample_R1.fq.gz sample_R2.fq.gz
 ```
 
-Show the upstream Trim Galore version:
+Single reads produce `*_trimmed.fq[.gz]`; pairs produce `*_val_1.fq[.gz]` and `*_val_2.fq[.gz]`. The accompanying text and JSON record the trimming settings and counts. `--fastqc` adds `*_fastqc.html` and `*_fastqc.zip` for the trimmed output. Open the HTML directly; it does not need the ZIP, a running container, Java or a network connection. The ZIP includes the module data and both chart formats. SVG is the default in HTML; use `--fastqc_args=--png` for raster charts. Sample names can appear in reports: check before sharing them.
+
+`taf-trimgalore --help` shows installed-wrapper help. `taf-trimgalore -- --help` and `taf-trimgalore trim_galore --help` show upstream help. If the first argument is a filename, use the explicit `trim_galore` form; otherwise TAFFISH treats it as a command. In TAFFISH 0.11 the command wrapper joins arguments as shell text. Use plain project names when possible; for **trusted** names with spaces, preserve the inner quotes:
 
 ```sh
-taf-trimgalore trim_galore --version
-taf-trimgalore -- --version
+taf-trimgalore trim_galore -o '"QC results"' '"reads with spaces.fq"'
 ```
 
-Single-end trimming:
+## Choose the right mode
 
-```sh
-taf-trimgalore trim_galore reads.fq.gz
-taf-trimgalore trim_galore --cores 4 --output_dir trimmed reads.fq.gz
-```
+| Task | Upstream options | Result or constraint |
+| --- | --- | --- |
+| Trim using a library-prep preset | `--library pbat` (also emseq, accel, zymo, scbs) | Applies end clipping; does not select adapters or change the minimum length. JSON records the resolved preset. |
+| RRBS with synchronized mates | `--rrbs --paired R1.fq.gz R2.fq.gz` | Separate from the clipping presets. |
+| Compress after trimming | `--clumpify --cores 2 reads.fq.gz` | Groups similar reads; requires the gzip output path. |
+| Reorder without trimming | `--clump_only --cores 2 reads.fq.gz` | Writes `*_clumped*` and a clumping report. FASTQ IDs, sequences and qualities are preserved, not file order, unusual plus-line text, CRLF or compressed bytes. |
+| Emit unaligned BAM and QC | `--output-format ubam --fastqc reads.fq` | Single-end `*_trimmed.bam`; paired FASTQ inputs produce one interleaved `*_val.bam`. Not an alignment or a general BAM editor. |
+| Carry per-read information | `--preserve-tags CB,UB sample.ubam`; `--paired --passthrough I1.fq.gz R1.fq.gz R2.fq.gz` | Choose tags explicitly for supported uBAM paths; passthrough is a paired FASTQ workflow. |
 
-Paired-end trimming:
+Do not reuse an output directory to preserve prior results: planned name collisions *within a run* are refused, but a successful new run can replace an earlier run's files. Use distinct input basenames when several reports go into a single directory. Malformed or misdeclared input can fail before output; check stderr before retrying. The upstream [usage guide](https://www.trimgalore.com/) covers additional modes, including poly-A/G trimming, specialty preprocessing and inline demultiplexing.
 
-```sh
-taf-trimgalore trim_galore --paired sample_R1.fq.gz sample_R2.fq.gz
-taf-trimgalore trim_galore --paired --cores 8 --output_dir trimmed sample_R1.fq.gz sample_R2.fq.gz
-```
+## Backends and resources
 
-RRBS mode:
+Docker, Podman and Linux Apptainer use the same CLI and write results into the bound working directory. Native image targets: Linux amd64 and arm64. For example, prefix the report command above with `TAFFISH_CONTAINER_BACKEND=docker`, `TAFFISH_CONTAINER_BACKEND=podman` or `TAFFISH_CONTAINER_BACKEND=apptainer`. No exposed ports, display, GPU or background service are involved. The installation in the image is read-only; keep input readable, output writable and enough temporary space on the host.
 
-```sh
-taf-trimgalore trim_galore --rrbs --paired sample_R1.fq.gz sample_R2.fq.gz
-taf-trimgalore trim_galore --rrbs --non_directional reads.fq.gz
-```
+**No database or model installation is needed.** Adapter presets, the FastQC 1.1.1 engine's configuration lists, report assets and fonts are embedded with the software. Adapter detection operates on the reads, not on a remote catalog. A custom FASTA (`-a file:adapters.fa`) or barcode list is project input, not a managed reference release: put a readable copy in the project directory. Use and share third-party inputs under their own terms. The app does not fetch missing files or need an administrator to initialize a cache.
 
-Built-in FastQC-compatible reports:
+## Packaging and limits
 
-```sh
-taf-trimgalore trim_galore --fastqc reads.fq.gz
-taf-trimgalore trim_galore --fastqc --fastqc_args "--nogroup --svg" reads.fq.gz
-```
+The build verifies [commit 508d85f](https://github.com/FelixKrueger/TrimGalore/commit/508d85feae324e993e0ccbe14e9090cf2897f68d), its tree and the upstream Cargo.lock before compiling without algorithm changes. The final Debian 12 slim image contains the binary, runtime libraries, bash, gzip, unzip, source identity, lockfile and notices; the compiler and Cargo cache stay in the builder. The bundled Rust engine renders charts locally using embedded Liberation Sans. It produces Java FastQC 0.13.0-compatible output; a standalone Java FastQC, cutadapt, samtools, MultiQC and a desktop viewer are not part of the image. MultiQC is a separate downstream consumer.
 
-v2.2 clumpify compression:
+The offline smoke covers version/commit, help/linkage, single and paired trimming, RRBS, gzip clumping, FASTQ reordering, the library preset and both FASTQ and uBAM reports. It tests software behavior with tiny inputs, not production throughput or scientific validity for every library or optional combination.
 
-```sh
-taf-trimgalore trim_galore --clumpify --cores 2 reads.fq.gz
-taf-trimgalore trim_galore --clumpify --compression 6 --cores 4 reads.fq.gz
-```
+The packaged wrapper was tested with Docker, Podman and Apptainer on native Linux amd64, and with Docker and Podman on arm64. Docker reported image sizes of approximately 91 MiB (amd64) and 112 MiB (arm64); the tested amd64 SIF was approximately 35 MiB. These are local image sizes, not registry download sizes.
 
-v2.3 format features:
+To test a source checkout without installing an alias, use `taf run -b docker -- trim_galore --fastqc -o qc reads.fq` from the checkout. `taf build` creates a local versioned wrapper under `target/`; the installed command shown above is the normal user entry point. The HTML is an output file, not a service: it remains readable after any of these commands exits.
 
-```sh
-taf-trimgalore trim_galore --output-format ubam reads.fq
-taf-trimgalore trim_galore --paired --output-format ubam interleaved.ubam
-taf-trimgalore trim_galore --preserve-tags CB,UB sample.ubam
-taf-trimgalore trim_galore --paired --passthrough I1.fq.gz R1.fq.gz R2.fq.gz
-```
+## License and citation
 
-Option-leading calls also work because `src/main.taf` directly calls the
-upstream command:
-
-```sh
-taf-trimgalore --paired sample_R1.fq.gz sample_R2.fq.gz
-taf-trimgalore --fastqc reads.fq.gz
-```
-
-The clearer form in documentation is still `taf-trimgalore trim_galore ...`,
-because it makes the boundary between the TAFFISH wrapper and the upstream
-command explicit.
-
-## Command Mode
-
-This is a normal TAFFISH tool app with command mode enabled. The default
-command is `trim_galore`, and the same container can also be entered with
-explicit commands:
-
-```sh
-taf-trimgalore trim_galore --help
-taf-trimgalore bash
-taf-trimgalore gzip --help
-```
-
-There is no separate `trimgalore`, `trim-galore`, `cutadapt`, or `fastqc`
-executable installed by this package. The app name is `trimgalore`; the
-upstream command remains `trim_galore`.
-
-## Inputs And Outputs
-
-Trim Galore reads FASTQ input, including plain and gzipped FASTQ. Common output
-names follow upstream conventions:
-
-- Single-end: `*_trimmed.fq` or `*_trimmed.fq.gz`
-- Paired-end: `*_val_1.fq(.gz)` and `*_val_2.fq(.gz)`
-- Reports: `*_trimming_report.txt` and `*_trimming_report.json`
-- Built-in FastQC: `*_fastqc.html` and `*_fastqc.zip`
-- uBAM output: `*_trimmed.bam` for single-end and one interleaved `*_val.bam`
-  for paired-end
-
-By default, output compression mirrors the input. Use `--dont_gzip` for plain
-FASTQ output, or `--compression 1..9` for gzip output level control. `--clumpify`
-requires gzip output and `--cores >= 2`.
-
-v2.3.0 adds unaligned BAM input/output support. uBAM output is selected with
-`--output-format ubam`; paired uBAM output is a single interleaved BAM file.
-`--preserve-tags` can carry selected BAM aux tags through trimming. The new
-`--passthrough` mode keeps a third FASTQ barcode/carrier read in lockstep with
-paired R1/R2 reads for 10X Multiome and related workflows.
-
-The JSON trimming report uses upstream schema version 1 and is intended for
-programmatic parsing, including MultiQC workflows.
-
-## Feature Coverage
-
-Packaged and smoke-tested:
-
-- version and help surface
-- single-end adapter trimming
-- paired-end trimming and pair validation
-- RRBS trimming path
-- built-in FastQC-compatible HTML/ZIP report generation
-- gzip input/output path
-- v2.2 `--clumpify` path
-- v2.3 `--output-format ubam` path
-- dynamic library resolution
-
-Supported by upstream and available through this wrapper, but not exhaustively
-tested by smoke:
-
-- demultiplexing with `--demux`
-- `--clock` and `--implicon` preprocessing modes
-- full uBAM round-trip with real BAM aux-tag fixtures
-- `--passthrough` on production Multiome datasets
-- all adapter presets and multi-adapter file modes
-- very large multi-core production runs
-- all `--fastqc_args` translations
-
-Not packaged as separate executables:
-
-- external `cutadapt`
-- external Java FastQC
-- MultiQC
-- BBMap clumpify
-
-For v2.3.0 these are not required for the normal Trim Galore binary. MultiQC is
-still a useful downstream app for aggregating reports, but it is intentionally
-kept separate.
-
-## Platform Notes
-
-The upstream release provides native Linux binaries for both x86_64 and
-aarch64, so this TAFFISH app declares native `linux/amd64` and `linux/arm64`
-builds. No Docker/Podman amd64 emulation is required on arm64 hosts.
-
-The binary is dynamically linked against glibc, zlib, libgcc, libm, and libc.
-The Dockerfile checks `ldd` during build and smoke checks assert that no dynamic
-dependency is missing.
-
-## Versioning
-
-This package version is `2.3.0-r1`.
-
-The upstream binary reports:
-
-```text
-trim_galore 2.3.0
-c6528e5 - linux/<arch> - built 2026-06-27T16:00:51Z
-```
-
-The architecture string differs between `linux/amd64` and `linux/arm64`, so
-metadata and smoke checks bind the package to version `2.3.0` and commit prefix
-`c6528e5`.
-
-## Upstream
-
-- Project: <https://github.com/FelixKrueger/TrimGalore>
-- Homepage: <https://www.trimgalore.com/>
-- Release: <https://github.com/FelixKrueger/TrimGalore/releases/tag/v2.3.0>
-- License: GPL-3.0-only
-- Citation: Krueger F. Trim Galore: consistent quality and adapter trimming for
-  next-generation sequencing data. Babraham Institute.
-
-No formal DOI or PMID was found in the upstream release README.
+TAFFISH packaging: [Apache-2.0](LICENSE). Trim Galore is GPL-3.0-only; bundled FastQC, fonts, Rust dependencies and OS packages retain their respective licenses. See `/opt/trimgalore/share/licenses`, `/opt/trimgalore/share/doc/CITATION.cff` and Debian copyright notices. Cite Felix Krueger, *Trim Galore*, [concept DOI 10.5281/zenodo.5127898](https://doi.org/10.5281/zenodo.5127898), and record version 2.4.0.

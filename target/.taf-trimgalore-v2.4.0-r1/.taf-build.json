@@ -1,0 +1,6 @@
+{
+  "artifact": "taf-trimgalore-v2.4.0-r1",
+  "schema": "taffish.build/v1",
+  "source_sha256": "4f12f3871009d081ad492e823227007c6084b89f9cb38bc92e98506bcee8f0d4",
+  "wrapper_sha256": "9d2f29c7ffbd011eff66d09a4a295d8b4834e70e00bb4422dab920b5489538f3"
+}
