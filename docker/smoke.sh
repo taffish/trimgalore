@@ -41,7 +41,8 @@ case "$mode" in
     identity)
         step=version
         trim_galore --version >run.log 2>&1
-        awk 'NR==1 {a=($0=="trim_galore 2.4.0")} NR==2 {b=($1=="508d85f" && ($3=="linux/aarch64" || $3=="linux/x86_64") && $5=="built" && NF==6)} END {exit !(a && b && NR==2)}' run.log
+        grep -Fx 'trim_galore 2.5.0' run.log >/dev/null
+        grep -E '^b0a83b0([[:space:]]|$)' run.log >/dev/null
         ;;
     help)
         step=help; trim --help

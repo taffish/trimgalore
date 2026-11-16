@@ -1,7 +1,7 @@
 [package]
 name = "trimgalore"
 kind = "tool"
-version = "2.4.0"
+version = "2.5.0"
 release = 1
 license = "Apache-2.0"
 main = "src/main.taf"
@@ -17,7 +17,7 @@ pipe = true
 command_mode = true
 
 [container]
-image = "ghcr.io/taffish/trimgalore:2.4.0-r1"
+image = "ghcr.io/taffish/trimgalore:2.5.0-r1"
 dockerfile = "docker/Dockerfile"
 build_platforms = "linux/amd64,linux/arm64"
 
@@ -32,10 +32,10 @@ name = "Trim Galore"
 type = "github"
 repo = "FelixKrueger/TrimGalore"
 homepage = "https://www.trimgalore.com/"
-release_url = "https://github.com/FelixKrueger/TrimGalore/releases/tag/v2.4.0"
-downloads = "git+https://github.com/FelixKrueger/TrimGalore.git@508d85feae324e993e0ccbe14e9090cf2897f68d"
-version = "2.4.0"
-commit = "508d85feae324e993e0ccbe14e9090cf2897f68d"
+release_url = "https://github.com/FelixKrueger/TrimGalore/releases/tag/v2.5.0"
+downloads = "git+https://github.com/FelixKrueger/TrimGalore.git@b0a83b0b410584a46a40af0b3dc4f0d5508b078c"
+version = "2.5.0"
+commit = "b0a83b0b410584a46a40af0b3dc4f0d5508b078c"
 license = "GPL-3.0-only"
 citation = "Felix Krueger. Trim Galore. Concept DOI: 10.5281/zenodo.5127898."
 doi = "10.5281/zenodo.5127898"

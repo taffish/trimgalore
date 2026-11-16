@@ -2,18 +2,18 @@
 # A digest or lock verifies identity, not future availability. Restore missing
 # inputs from verified archives; audit new revisions rather than changing a hash.
 FROM rust:1.88-bookworm@sha256:af306cfa71d987911a781c37b59d7d67d934f49684058f96cf72079c3626bfe0 AS builder
-ENV SOURCE_DATE_EPOCH=1794219431
+ENV SOURCE_DATE_EPOCH=1794581933
 WORKDIR /build
 # The tag is a locator; the commit, tree and Cargo.lock are the identity.
 # Cargo checks crate checksums. A vanished crate requires an identical verified
 # copy or a new reviewed dependency set; do not regenerate the upstream lock.
 RUN set -eu; \
-    git -c http.version=HTTP/1.1 clone --depth 1 --branch v2.4.0 \
+    git -c http.version=HTTP/1.1 clone --depth 1 --branch v2.5.0 \
         https://github.com/FelixKrueger/TrimGalore.git src; \
     cd src; \
-    test "$(git rev-parse HEAD)" = 508d85feae324e993e0ccbe14e9090cf2897f68d; \
-    test "$(git rev-parse 'HEAD^{tree}')" = 125f72acb703b0f27b5bff8d0c89f7f40f6071ec; \
-    echo 'd314e687ff367c0ad47541548626da0811bb6c0628abca54644a70a1fbf27a0f  Cargo.lock' | sha256sum -c -; \
+    test "$(git rev-parse HEAD)" = b0a83b0b410584a46a40af0b3dc4f0d5508b078c; \
+    test "$(git rev-parse 'HEAD^{tree}')" = cdcf5c23b9cde1c216278e8c3cca0c376a45db88; \
+    echo '840d9c3f53769fc16ccc474edacd9b9fa72a3312709f0854b15365e02cf78816  Cargo.lock' | sha256sum -c -; \
     cargo build --release --locked; \
     prefix=/opt/trimgalore; \
     install -d -m 0755 "$prefix/bin" "$prefix/share/doc" "$prefix/share/licenses"; \

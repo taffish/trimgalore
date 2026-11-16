@@ -1,4 +1,4 @@
-taf-trimgalore 2.4.0-r1 - trim reads, reorder FASTQ, or write an offline FastQC report
+taf-trimgalore 2.5.0-r1 - trim reads, reorder FASTQ, or write an offline FastQC report
 
 Usage:
   taf-trimgalore trim_galore [options] input.fq[.gz]
@@ -14,7 +14,8 @@ Examples:
   taf-trimgalore --rrbs --paired -o rrbs R1.fq.gz R2.fq.gz
   taf-trimgalore --library pbat --paired -o clipped R1.fq.gz R2.fq.gz
   taf-trimgalore --clump_only --cores 2 -o reordered reads.fq.gz
-  taf-trimgalore --output-format ubam --fastqc -o qc-bam reads.fq
+  taf-trimgalore --cores 2 --output-format ubam --fastqc -o qc-bam reads.fq
+  taf-trimgalore --cores 2 -o from-bam reads.bam
 
 Quality reports:
   TAFFISH_CONTAINER_BACKEND=docker taf-trimgalore --fastqc -o qc reads.fq.gz
@@ -27,12 +28,13 @@ Quality reports:
 Inputs and outputs:
   Work in a directory containing your input files. Built-in adapters and
   library presets need no download. For your own adapters use -a file:adapters.fa.
-  Use a fresh -o directory; reruns can replace results. Within one run, every
+  Use four-line FASTQ or unaligned BAM. --cores also works on uBAM input
+  and output; allow for extra I/O threads. Use a fresh -o directory; reruns can replace results. Within one run, every
   planned output name must be distinct. Rename same-named mates if necessary.
   Single-end: *_trimmed.fq[.gz]; paired: *_val_1.fq[.gz] and *_val_2.fq[.gz].
   Trimming also writes text and JSON reports. --clump_only reorders records
   without trimming and writes *_clumped* and a text clumping report instead.
-  For predictable paths, use simple filenames. With TAFFISH 0.11, to pass a
+  For predictable paths, use simple filenames. With the command-mode wrapper, to pass a
   space in a trusted name include the inner quotes, e.g.:
     taf-trimgalore trim_galore -o '"QC results"' '"reads with spaces.fq"'
 
