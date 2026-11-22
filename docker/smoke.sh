@@ -41,8 +41,10 @@ case "$mode" in
     identity)
         step=version
         trim_galore --version >run.log 2>&1
-        grep -Fx 'trim_galore 2.5.0' run.log >/dev/null
-        grep -E '^b0a83b0([[:space:]]|$)' run.log >/dev/null
+        # Validate identity, not architecture spelling, build time or banner size.
+        awk '/^trim_galore / { versions++; if ($0 != "trim_galore 2.6.0") bad=1 }
+          /^[0-9a-f]+[[:space:]]/ { commits++; if ($1 != "a77e643") bad=1 }
+          END { exit(bad || versions != 1 || commits != 1) }' run.log
         ;;
     help)
         step=help; trim --help
@@ -75,6 +77,18 @@ case "$mode" in
     fastqc)
         read1; step=fastqc; trim --fastqc --dont_gzip --length 5 -o out reads.fq
         report out/reads_trimmed_fastqc
+        ;;
+    raw-fastqc)
+        read1; step=raw-fastqc; trim --length 5 --dont_gzip --fastqc_raw --fastqc -o out reads.fq
+        report out/reads_raw_fastqc
+        report out/reads_trimmed_fastqc
+        unzip -p out/reads_raw_fastqc.zip '*/fastqc_data.txt' > raw-stats
+        unzip -p out/reads_trimmed_fastqc.zip '*/fastqc_data.txt' > trimmed-stats
+        awk -F '\t' '$1=="Filename" && $2=="reads_raw.fq" {name=1}
+          $1=="Sequence length" && $2==21 {length_ok=1}
+          END {exit(!name || !length_ok)}' raw-stats
+        awk -F '\t' '$1=="Sequence length" && $2==8 {ok=1} END {exit(!ok)}' trimmed-stats
+        test ! -e out/reads_raw.fq && test ! -L out/reads_raw.fq
         ;;
     gzip)
         read1; gzip -c reads.fq > reads.fq.gz
